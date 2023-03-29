@@ -4,12 +4,34 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Xbim.Ifc;
+using SolidWorks.Interop.sldworks;
+
 
 namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
 {
     class Program
     {
         static void Main(string[] args)
+        {
+            SolidworksInterface swInterface = new SolidworksInterface();
+            
+            // Must have part pre-selected in the feature tree so this won't fail 
+            var swComp = swInterface.GetSelectedComponent();
+
+            // Select the commented part in the assembly and un-comment only its line to run/verify this.
+
+            //var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, 0.12463, -0.32757, -0.100053); // Bigbag haak_copy<1>
+            //var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, -.35444, .09776, -0.100053); // Bigbag haak_copy<5>
+            //var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, .129774, -0.1, 0.09491); // Verloop DN150 naar blaaspot_copy<4>
+            //var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, .125508, -.153956, -0.010974); // Blaaspot knevelstang<1>
+            var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, -.22, -.10955, -.10955); // Bladder Pipe_Copy<1> 
+
+            Console.WriteLine("Component Match? " + isSameComponent);
+            swInterface.Dispose();
+            Console.ReadKey();
+        }
+
+        private void Example()
         {
             var handler = new IFCHandler();
             var editor = new XbimEditorCredentials
@@ -23,7 +45,7 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
                 EditorsOrganisationName = "Blue Byte Systems Inc."
             };
 
-            handler.OpenDocument(editor, @"C:\Users\jlili\Downloads\Tijdelijk\Wisselklep1.IFC");
+            handler.OpenDocument(editor, @"E:\Hustle\Finances\Blue Byte Systems\Projects\007 - IFC Tree Compare\Blaaspot\Blaaspot compleet Vortex_COPY.IFC");
 
             handler.BuildTree();
 

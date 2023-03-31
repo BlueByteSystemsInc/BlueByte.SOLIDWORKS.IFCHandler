@@ -24,7 +24,9 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
             //var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, -.35444, .09776, -0.100053); // Bigbag haak_copy<5>
             //var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, .129774, -0.1, 0.09491); // Verloop DN150 naar blaaspot_copy<4>
             //var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, .125508, -.153956, -0.010974); // Blaaspot knevelstang<1>
-            var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, -.22, -.10955, -.10955); // Bladder Pipe_Copy<1> 
+            //var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, -.22, -.10955, -.10955); // Bladder Pipe_Copy<1> 
+            var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, .16731, .055072, .185758); // 69942<1>
+
 
             Console.WriteLine("Component Match? " + isSameComponent);
             swInterface.Dispose();
@@ -45,7 +47,7 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
                 EditorsOrganisationName = "Blue Byte Systems Inc."
             };
 
-            handler.OpenDocument(editor, @"E:\Hustle\Finances\Blue Byte Systems\Projects\007 - IFC Tree Compare\Blaaspot\Blaaspot compleet Vortex_COPY.IFC");
+            handler.OpenDocument(editor, @"");
 
             handler.BuildTree();
 

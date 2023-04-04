@@ -13,12 +13,13 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
     public class SolidworksInterface : IDisposable
     {
         private bool isConnected;
-        private SldWorks swApp;
+        private SldWorks sw_App;
+        public ref SldWorks SolidworksApp { get { return ref this.sw_App; } }
         public bool IsConnected { get { return isConnected; } }
         public SolidworksInterface(SldWorks solidworksApp = null)
         {
-            swApp = solidworksApp;
-            if (swApp == null)
+            sw_App = solidworksApp;
+            if (sw_App == null)
             {
                 isConnected = ConnectToSW();
                 //Console.WriteLine("SW Interface Loaded - Connected: " + isConnected);
@@ -33,11 +34,11 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
             bool returnVal = false;
             try
             {
-                swApp = (SldWorks)Marshal.GetActiveObject("SldWorks.Application");
+                sw_App = (SldWorks)Marshal.GetActiveObject("SldWorks.Application");
                 Process[] proc = Process.GetProcessesByName("SLDWORKS");
                 if (proc.Count() > 0)
                 {
-                    swApp.Visible = true;
+                    sw_App.Visible = true;
                     returnVal = true;
                 }
             }
@@ -55,7 +56,7 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
         /// <param name="y">y component of IFC bounding box corner</param>
         /// <param name="z">z component of IFC bounding box corner</param>
         /// <returns>true if match is likely -or- false if match is unlikely</returns>
-        public bool VerifyIFC_ComponentData(Component2 swComponent, double x, double y, double z)
+        public bool VerifyIFC_ComponentData(ref SldWorks swApp, Component2 swComponent, double x, double y, double z)
         {
             bool bRet = false;
 
@@ -64,9 +65,10 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
             PartDoc swPartDoc = default;
 
             double[] dBoundingBox = default;
+            double[][] boundingBoxCornerPoints = default;
             MathUtility swMathUtil = default;
-            MathPoint[] boundingBoxCornerPoints = default;
             MathTransform swTransform = default;
+            MathPoint mp = default;
 
             double cornerPointTolerance = 5e-3; // bounding box is inaccurate and needs a tolerance range for comparison: [5 mm]
 
@@ -80,13 +82,14 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
                 swMathUtil = swApp.GetMathUtility() as MathUtility;
                 swTransform = swComponent.Transform2;
 
+                // Check document type because built-in methods are different for both assy and part
                 switch (swCompModel.GetType())
                 {
                     case (int)swDocumentTypes_e.swDocPART:
                         {
                             swPartDoc = swCompModel as PartDoc;
                             dBoundingBox = swPartDoc.GetPartBox(true) as double[];
-                            //dBoundingBox = GetAccurateBoundingBox(ref swPartDoc, ref swMathUtil, ref swTransform);
+                            //dBoundingBox = GetAccurateBoundingBox(ref swPartDoc, ref swMathUtil, ref swTransform); // This is not more accurate than built-in method
                         }
                         break;
 
@@ -98,42 +101,53 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
                         break;
                 }
 
-                boundingBoxCornerPoints = new MathPoint[]
+                // Turn 2 corner points into 8 total points representing the corners of the bounding box
+                boundingBoxCornerPoints = new double[][]
                 {
-                    (swMathUtil.CreatePoint(new double[] { dBoundingBox[0], dBoundingBox[1], dBoundingBox[2]}) as MathPoint).MultiplyTransform(swTransform) as MathPoint,
-                    (swMathUtil.CreatePoint(new double[] { dBoundingBox[0], dBoundingBox[1], dBoundingBox[5]}) as MathPoint).MultiplyTransform(swTransform) as MathPoint,
-                    (swMathUtil.CreatePoint(new double[] { dBoundingBox[0], dBoundingBox[4], dBoundingBox[2]}) as MathPoint).MultiplyTransform(swTransform) as MathPoint,
-                    (swMathUtil.CreatePoint(new double[] { dBoundingBox[0], dBoundingBox[4], dBoundingBox[5]}) as MathPoint).MultiplyTransform(swTransform) as MathPoint,
-                    (swMathUtil.CreatePoint(new double[] { dBoundingBox[3], dBoundingBox[1], dBoundingBox[2]}) as MathPoint).MultiplyTransform(swTransform) as MathPoint,
-                    (swMathUtil.CreatePoint(new double[] { dBoundingBox[3], dBoundingBox[1], dBoundingBox[5]}) as MathPoint).MultiplyTransform(swTransform) as MathPoint,
-                    (swMathUtil.CreatePoint(new double[] { dBoundingBox[3], dBoundingBox[4], dBoundingBox[2]}) as MathPoint).MultiplyTransform(swTransform) as MathPoint,
-                    (swMathUtil.CreatePoint(new double[] { dBoundingBox[3], dBoundingBox[4], dBoundingBox[5]}) as MathPoint).MultiplyTransform(swTransform) as MathPoint,
+                    new double[] { dBoundingBox[0], dBoundingBox[1], dBoundingBox[2]},
+                    new double[] { dBoundingBox[0], dBoundingBox[1], dBoundingBox[5]},
+                    new double[] { dBoundingBox[0], dBoundingBox[4], dBoundingBox[2]},
+                    new double[] { dBoundingBox[0], dBoundingBox[4], dBoundingBox[5]},
+                    new double[] { dBoundingBox[3], dBoundingBox[1], dBoundingBox[2]},
+                    new double[] { dBoundingBox[3], dBoundingBox[1], dBoundingBox[5]},
+                    new double[] { dBoundingBox[3], dBoundingBox[4], dBoundingBox[2]},
+                    new double[] { dBoundingBox[3], dBoundingBox[4], dBoundingBox[5]},
                 };
-                //DrawBoundingBoxPoints(boundingBoxCornerPoints);
 
-                dBoundingBox = GetBoundingBoxRelativeToAssyPlanes(boundingBoxCornerPoints, ref swMathUtil);
+                // Transform the bounding box points from part space to assembly space
+                for(int i = 0; i<boundingBoxCornerPoints.Length; i++)
+                {
+                    mp = ((MathPoint)swMathUtil.CreatePoint(boundingBoxCornerPoints[i])).MultiplyTransform(swTransform) as MathPoint;
+                    boundingBoxCornerPoints[i] = mp.ArrayData as double[];
+                }
+                //DrawBoundingBoxPoints(boundingBoxCornerPoints); // Un-comment this to see a draw the points in a 3D sketch
+
+                // Modify bounding box planes to align with assembly X, Y, & Z axes
+                dBoundingBox = GetBoundingBoxRelativeToAssyPlanes(boundingBoxCornerPoints);
                 
-                boundingBoxCornerPoints = new MathPoint[]
+                // Again, turn the 2 corner points returned into 8 representing the corners of the bounding box
+                boundingBoxCornerPoints = new double[][]
                 {
-                    swMathUtil.CreatePoint(new double[] { dBoundingBox[0], dBoundingBox[1], dBoundingBox[2]}) as MathPoint as MathPoint,
-                    swMathUtil.CreatePoint(new double[] { dBoundingBox[0], dBoundingBox[1], dBoundingBox[5]}) as MathPoint as MathPoint,
-                    swMathUtil.CreatePoint(new double[] { dBoundingBox[0], dBoundingBox[4], dBoundingBox[2]}) as MathPoint as MathPoint,
-                    swMathUtil.CreatePoint(new double[] { dBoundingBox[0], dBoundingBox[4], dBoundingBox[5]}) as MathPoint as MathPoint,
-                    swMathUtil.CreatePoint(new double[] { dBoundingBox[3], dBoundingBox[1], dBoundingBox[2]}) as MathPoint as MathPoint,
-                    swMathUtil.CreatePoint(new double[] { dBoundingBox[3], dBoundingBox[1], dBoundingBox[5]}) as MathPoint as MathPoint,
-                    swMathUtil.CreatePoint(new double[] { dBoundingBox[3], dBoundingBox[4], dBoundingBox[2]}) as MathPoint as MathPoint,
-                    swMathUtil.CreatePoint(new double[] { dBoundingBox[3], dBoundingBox[4], dBoundingBox[5]}) as MathPoint as MathPoint,
+                    new double[] { dBoundingBox[0], dBoundingBox[1], dBoundingBox[2]},
+                    new double[] { dBoundingBox[0], dBoundingBox[1], dBoundingBox[5]},
+                    new double[] { dBoundingBox[0], dBoundingBox[4], dBoundingBox[2]},
+                    new double[] { dBoundingBox[0], dBoundingBox[4], dBoundingBox[5]},
+                    new double[] { dBoundingBox[3], dBoundingBox[1], dBoundingBox[2]},
+                    new double[] { dBoundingBox[3], dBoundingBox[1], dBoundingBox[5]},
+                    new double[] { dBoundingBox[3], dBoundingBox[4], dBoundingBox[2]},
+                    new double[] { dBoundingBox[3], dBoundingBox[4], dBoundingBox[5]},
                 };
-                //DrawBoundingBoxPoints(boundingBoxCornerPoints);
+                //DrawBoundingBoxPoints(boundingBoxCornerPoints);  // Un-comment this to see a 3D sketch in the assembly to show this.
 
+
+                // Calculate the distance between calculated X, Y and Z inputs individually. Each should be less than the cornerPointTolerance constant. If so, return true.
                 for(int i=0; i<boundingBoxCornerPoints.Length; i++)
                 {
-                    MathPoint cornerPoint = boundingBoxCornerPoints[i];
+                    double[] cornerPoint = boundingBoxCornerPoints[i];
                     
-                    double[] arrayData = cornerPoint.ArrayData as double[];
-                    var cpX = Math.Round(arrayData[0], 6);
-                    var cpY = Math.Round(arrayData[1], 6);
-                    var cpZ = Math.Round(arrayData[2], 6);
+                    var cpX = Math.Round(cornerPoint[0], 6);
+                    var cpY = Math.Round(cornerPoint[1], 6);
+                    var cpZ = Math.Round(cornerPoint[2], 6);
                     
                     double dist = Math.Sqrt(Math.Pow(cpX - x, 2) + Math.Pow(cpY - y, 2) + Math.Pow(cpZ - z, 2));
                     Console.WriteLine($"\n         ({cpX}, {cpY}, {cpZ})  =>  Delta=({Math.Abs(cpX - x)}, {Math.Abs(cpY - y)}, {Math.Abs(cpZ - z)})  TOL: {cornerPointTolerance}\n");
@@ -145,7 +159,7 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
                         break;
                     }
                 }
-                //DrawBoundingBoxPoints(boundingBoxCornerPoints);
+
                 bRet = cornerPointFound;
             }
             catch(Exception)
@@ -154,13 +168,24 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
             }
             finally
             {
-
+                if (swCompModel != null)
+                    Marshal.FinalReleaseComObject(swCompModel);
+                if (swAssyDoc != null)
+                    Marshal.FinalReleaseComObject(swAssyDoc);
+                if (swPartDoc != null)
+                    Marshal.FinalReleaseComObject(swPartDoc);
+                if (swMathUtil != null)
+                    Marshal.FinalReleaseComObject(swMathUtil);
+                if (swTransform != null)
+                    Marshal.FinalReleaseComObject(swTransform);
+                if (mp != null)
+                    Marshal.FinalReleaseComObject(mp);
             }
 
             return bRet;
         }
 
-        private double[] GetBoundingBoxRelativeToAssyPlanes(MathPoint[] points, ref MathUtility swMathUtil)
+        private double[] GetBoundingBoxRelativeToAssyPlanes(double[][] points)
         {
             double[] dBox = new double[6];
             double minX = 0;
@@ -174,11 +199,10 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
             {
                 for (int i = 0; i < points.Length; i++)
                 {
-                    var point = points[i];
-                    var arrayData = point.ArrayData as double[];
-                    double x = arrayData[0];
-                    double y = arrayData[1];
-                    double z = arrayData[2];
+                    double[] point = points[i];
+                    double x = point[0];
+                    double y = point[1];
+                    double z = point[2];
 
                     
                     if (i == 0 || x > maxX)
@@ -216,8 +240,8 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
 
         public void Dispose()
         {
-            if(swApp != null)
-                Marshal.FinalReleaseComObject(swApp);
+            if(sw_App != null)
+                Marshal.FinalReleaseComObject(sw_App);
             //Console.WriteLine("Disposed");
         }
 
@@ -356,7 +380,7 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
 
             try
             {
-                swModel = swApp.ActiveDoc as ModelDoc2;
+                swModel = sw_App.ActiveDoc as ModelDoc2;
                 swSelMan = swModel.SelectionManager as SelectionMgr;
 
                 var selectionType = swSelMan.GetSelectedObjectType3(1, 0);
@@ -382,7 +406,7 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
 
         private void DrawBoundingBoxPoints(MathPoint[] cornerPoints)
         {
-            ModelDoc2 swModel = swApp.ActiveDoc as ModelDoc2;
+            ModelDoc2 swModel = sw_App.ActiveDoc as ModelDoc2;
             SketchManager swSketchMan = swModel.SketchManager as SketchManager;
 
             swModel.ClearSelection2(true);

@@ -25,10 +25,10 @@ namespace BlueByte.SOLIDWORKS.IFCHandler.Sandbox
             //var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, .129774, -0.1, 0.09491); // Verloop DN150 naar blaaspot_copy<4>
             //var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, .125508, -.153956, -0.010974); // Blaaspot knevelstang<1>
             //var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, -.22, -.10955, -.10955); // Bladder Pipe_Copy<1> 
-            var isSameComponent = swInterface.VerifyIFC_ComponentData(swComp, .16731, .055072, .185758); // 69942<1>
+            var isSameComponent = swInterface.VerifyIFC_ComponentData(ref swInterface.SolidworksApp, swComp, .16731, .055072, .185758); // 69942<1> My local test assy part
 
 
-            Console.WriteLine("Component Match? " + isSameComponent);
+            Console.WriteLine(swComp.Name2 + " | Component Match? " + isSameComponent);
             swInterface.Dispose();
             Console.ReadKey();
         }
